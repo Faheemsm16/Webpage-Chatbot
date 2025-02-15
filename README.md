@@ -21,3 +21,6 @@ This project demonstrates a web-based chatbot built using Python and Jupyter wid
 - NLTK for sentence tokenization.
 - Scikit-learn for TF-IDF vectorization and cosine similarity computation.
 - IPyWidgets for creating an interactive chatbot interface.
+
+## Chatbot Report 
+https://drive.google.com/file/d/16iD6iiKet3i0nqamep2-ui3gxVQVkH_j/view?usp=sharing
