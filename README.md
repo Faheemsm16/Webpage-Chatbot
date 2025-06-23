@@ -12,15 +12,18 @@ This project demonstrates a web-based chatbot built using Python and Jupyter wid
 
 ## Screenshots
 - **Chatbot Interaction with First Website:** Demonstrates how the chatbot responds to user queries for content from the first website.
-- **Chatbot After Clearing Conversation History:** Shows the interface after the conversation history is cleared.
-- **Chatbot Interaction with Second Website:** Illustrates a new interaction after changing the URL to a second website.
+  ![image](https://github.com/user-attachments/assets/d4f74be6-5f5b-41c9-bb41-0475c31b3f80)
 
+- **Chatbot After Clearing Conversation History:** Shows the interface after the conversation history is cleared.
+  ![image](https://github.com/user-attachments/assets/2c54703c-1dae-4173-8411-a1d814e89f7a)
+
+- **Chatbot Interaction with Second Website:** Illustrates a new interaction after changing the URL to a second website.
+  ![image](https://github.com/user-attachments/assets/689658e4-e287-4ce6-a48c-5c0f0a70791e)
+
+  
 ## Technologies Used
 - Python
 - BeautifulSoup for web scraping.
 - NLTK for sentence tokenization.
 - Scikit-learn for TF-IDF vectorization and cosine similarity computation.
 - IPyWidgets for creating an interactive chatbot interface.
-
-## Chatbot Report 
-https://drive.google.com/file/d/16iD6iiKet3i0nqamep2-ui3gxVQVkH_j/view?usp=sharing
