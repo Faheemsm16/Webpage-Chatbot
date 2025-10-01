@@ -6,9 +6,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 import streamlit as st
 import nltk
 
-# Download punkt tokenizer (once)
-nltk.download('punkt', quiet=True)
-
+# Ensure both punkt and punkt_tab are available
+for resource in ["punkt", "punkt_tab"]:
+    try:
+        nltk.data.find(f"tokenizers/{resource}")
+    except LookupError:
+        nltk.download(resource)
+        
 # ---------------------------
 # Utility Functions
 # ---------------------------
@@ -92,4 +96,5 @@ if url:
         for q, a in st.session_state.conversation:
             st.markdown(f"**Q:** {q}")
             st.markdown(f"**A:** {a}")
+
             st.markdown("---")
