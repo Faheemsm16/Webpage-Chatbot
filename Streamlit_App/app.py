@@ -1,107 +1,101 @@
-import requests
-from bs4 import BeautifulSoup
-from nltk.tokenize import sent_tokenize
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+# app.py
 import streamlit as st
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 import nltk
+from nltk.corpus import stopwords
+from collections import defaultdict
+import pandas as pd
+from nltk.tokenize import word_tokenize
 
-# ---------------------------
-# NLTK Setup
-# ---------------------------
-for resource in ["punkt", "punkt_tab"]:
-    try:
-        nltk.data.find(f"tokenizers/{resource}")
-    except LookupError:
-        nltk.download(resource)
+# Download resources
+nltk.download("punkt")
+nltk.download("stopwords")
 
-# ---------------------------
-# Utility Functions
-# ---------------------------
-def extract_text_from_url(url):
-    """Scrape text content from a given URL, more robust."""
-    try:
-        response = requests.get(url)
-        soup = BeautifulSoup(response.content, "html.parser")
+# Load model once
+@st.cache_resource
+def load_model():
+    model_name = "joeddav/distilbert-base-uncased-go-emotions-student"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    return tokenizer, model
 
-        # Grab <p>, <div>, <span> text
-        elements = soup.find_all(["p", "div", "span"])
-        text = " ".join([el.get_text(separator=" ", strip=True) for el in elements])
-        text = " ".join(text.split())  # remove excessive whitespace
+tokenizer, model = load_model()
 
-        return text if text else "No extractable content found."
-    except Exception as e:
-        return f"Error extracting content: {e}"
+# Preprocessing
+def preprocess_text(text):
+    words = nltk.word_tokenize(text.lower())
+    words = [word for word in words if word.isalnum() and word not in stopwords.words('english')]
+    return " ".join(words)
 
-def find_best_answer(question, text):
-    """Find the most relevant sentence from webpage text."""
-    sentences = sent_tokenize(text)
-    if not sentences:
-        return "No content available to extract an answer from."
+def sliding_window(text, window_size=20, step_size=10):
+    words = text.split()
+    return [" ".join(words[i:i+window_size]) for i in range(0, len(words), step_size)]
 
-    all_text = [question] + sentences
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(all_text)
-    question_vector = tfidf_matrix[0]
-    sentence_vectors = tfidf_matrix[1:]
-    similarities = cosine_similarity(question_vector, sentence_vectors)
-    best_sentence_index = similarities.argmax()
-    return sentences[best_sentence_index]
+# Transformer analysis
+def analyze_emotions(poem, threshold=0.065):
+    inputs = tokenizer(poem, return_tensors="pt", truncation=True, padding=True)
+    outputs = model(**inputs)
+    scores = torch.softmax(outputs.logits, dim=1).squeeze().tolist()
 
-# ---------------------------
-# Streamlit App
-# ---------------------------
-st.set_page_config(page_title="Webpage Q&A Chatbot", page_icon="🤖", layout="wide")
-st.title("🤖 Webpage Q&A Chatbot")
-st.markdown("Ask questions about any webpage content. Enter a URL and start chatting!")
+    emotion_labels = ["admiration", "amusement", "anger", "annoyance", "approval", "caring", "confusion", "curiosity",
+                      "desire", "disappointment", "disapproval", "disgust", "embarrassment", "excitement", "fear",
+                      "gratitude", "grief", "joy", "love", "nervousness", "neutral", "optimism", "pride", "realization",
+                      "relief", "remorse", "sadness", "surprise"]
 
-# Sidebar Info
-with st.sidebar:
-    st.header("ℹ️ About")
-    st.write(
-        """
-        This chatbot scrapes the text from a webpage (paragraphs, divs, spans),
-        then uses **TF-IDF + Cosine Similarity** to find the most relevant answer
-        to your question.
+    emotion_scores = {emotion_labels[i]: scores[i] for i in range(len(emotion_labels)) if scores[i] >= threshold}
+    sorted_emotions = sorted(emotion_scores.items(), key=lambda x: x[1], reverse=True)[:6]
+    return dict(sorted_emotions)
 
-        **Commands:**  
-        - 🔄 Change URL → Enter new URL in the box  
-        - 🧹 Clear Chat → Resets conversation  
-        - ❌ Exit → Ends session  
-        """
+# Plot functions
+def plot_emotion_heatmap(emotion_trends):
+    emotions = list(emotion_trends.keys())
+    max_windows_count = max(len(scores) for scores in emotion_trends.values())
+    emotion_matrix = np.zeros((len(emotions), max_windows_count))
+
+    for i, emotion in enumerate(emotions):
+        scores = emotion_trends[emotion]
+        emotion_matrix[i, :len(scores)] = scores
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.heatmap(emotion_matrix, annot=True,
+                xticklabels=[f"Win {i+1}" for i in range(max_windows_count)],
+                yticklabels=emotions, cmap='Blues', ax=ax)
+    ax.set_title("Emotion Heatmap")
+    return fig
+
+def plot_emotion_flow(emotion_trends):
+    fig, ax = plt.subplots(figsize=(12, 6))
+    for emotion, scores in emotion_trends.items():
+        ax.plot(range(1, len(scores) + 1), scores, label=emotion, marker='o')
+    ax.set_title("Emotion Flow Across Windows")
+    ax.legend()
+    return fig
+
+# --- Streamlit UI ---
+st.title("🎭 Poem Emotion Analyzer")
+poem = st.text_area("Enter your poem:")
+
+if st.button("Analyze"):
+    processed_poem = preprocess_text(poem)
+    windows = sliding_window(processed_poem)
+    emotion_trends = defaultdict(list)
+
+    for window in windows:
+        emotions = analyze_emotions(window)
+        for emotion, score in emotions.items():
+            emotion_trends[emotion].append(score)
+
+    st.subheader("Transformer-Based Emotion Analysis")
+    sorted_emotions = sorted(
+        [(e, sum(s)/len(s)) for e, s in emotion_trends.items()],
+        key=lambda x: x[1], reverse=True
     )
+    for emotion, avg_score in sorted_emotions:
+        st.write(f"**{emotion.capitalize()}**: {avg_score:.2f}")
 
-# Input URL
-url = st.text_input("🌐 Enter a URL to extract content:")
-
-if url:
-    if "text_content" not in st.session_state or st.session_state.get("url") != url:
-        st.session_state.text_content = extract_text_from_url(url)
-        st.session_state.url = url
-        st.session_state.conversation = []
-
-    # Show preview
-    st.subheader("📄 Extracted text preview (first 500 chars):")
-    st.write(st.session_state.text_content[:500] + ("..." if len(st.session_state.text_content) > 500 else ""))
-
-    # Question input
-    question = st.text_input("❓ Ask a question:")
-
-    if st.button("Get Answer") and question:
-        if st.session_state.text_content.strip() == "" or st.session_state.text_content.startswith("Error"):
-            st.warning("No content available to answer questions.")
-        else:
-            answer = find_best_answer(question, st.session_state.text_content)
-            st.session_state.conversation.append((question, answer))
-
-    # Clear chat button
-    if st.button("🧹 Clear Chat"):
-        st.session_state.conversation = []
-
-    # Show conversation
-    if st.session_state.conversation:
-        st.subheader("💬 Conversation History")
-        for q, a in st.session_state.conversation:
-            st.markdown(f"**Q:** {q}")
-            st.markdown(f"**A:** {a}")
-            st.markdown("---")
+    st.pyplot(plot_emotion_heatmap(emotion_trends))
+    st.pyplot(plot_emotion_flow(emotion_trends))
